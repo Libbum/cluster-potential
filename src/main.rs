@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
+use std::path::Path;
 use std::env;
 
 use regex::Regex;
@@ -29,6 +30,14 @@ fn main() {
     let a = 0.0035;
 
     let cluster = read_cluster().unwrap();
+
+    //setup output file
+    let potname = format!("potential_{}.dat", node);
+    let potpath = Path::new(&potname);
+    let mut potfile = match File::create(&potpath) {
+         Err(why) => panic!("couldn't create {}: {}", potpath.display(), why.description()),
+         Ok(file) => file,
+    };
 
     println!("Building potential file for node: {}", node);
 
@@ -69,7 +78,7 @@ fn main() {
     // must have one, we can directly `unwrap` it.
     match gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
         Err(why) => panic!("couldn't write to gulp stdin: {}", why.description()),
-        Ok(_) => println!("sent the following to gulps stdin: {}", input_gin),
+        Ok(_) => {},
     }
 
     // Because `stdin` does not live after the above calls, it is `drop`ed,
@@ -89,7 +98,13 @@ fn main() {
     let caps = re_final.captures(&clust_gout).unwrap();
     let potval: Option<f64> = caps.get(1).and_then(|s| s.as_str().parse().ok());
     match potval {
-        Some(p) => {println!("Final energy in Wafer units: {:.6}", p*239.2311f64)},
+        Some(p) => {
+                let potout = format!("{:.6}\n", p*239.2311f64);
+                match potfile.write_all(potout.as_bytes()) {
+                    Err(why) => panic!("couldn't write to output: {}", why.description()),
+                    Ok(_) => {},
+                }
+            },
         None => {panic!("Couldn't capture final energy from gulp output.")},
     }
 
