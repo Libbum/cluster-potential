@@ -25,8 +25,8 @@ fn main() {
     }
 
     let cpus = 30;
-    let numxi = 2;
-    let numyi = 2;
+    let numxi = 300;
+    let numyi = 300;
     let numzi = 300;
     let a = 0.0035;
 
@@ -46,7 +46,7 @@ fn main() {
 
     let re_final = Regex::new(r"Final energy =\s+(-?\d+\.?\d+)\s+eV").unwrap();
 
-    println!("Building potential file for node: {}", node);
+    println!("Building input conditions for node: {}", node);
 
     let a2 = a / 2.0;
     let distnumz = numzi / cpus;
@@ -56,6 +56,8 @@ fn main() {
     let grx = numx * a2 - a2;
     let gry = numy * a2 - a2;
     let grz = numz * a2 - a2;
+
+    let mut input_gin = String::from("conp opti\n");
 
     for xx in 0..numxi + 5 + 1 {
         for yy in 0..numyi + 5 + 1 {
@@ -67,55 +69,59 @@ fn main() {
                          ((zz as f32) + ((node as f32) - 1.0) * (distnumz as f32)) * (2.0 * grz) /
                          (numz - 1.0);
                 let current = format!("O   {:.5}   {:.5}   {:.5}", tx, ty, tz);
-                //
-                let input_gin = "conp opti\ncart\n".to_string() + &cluster + &current +
-                                "\nlibrary streitzmintmire\n";
-                // Spawn gulp
-                // Should actually set environment from the outside. But we can also do this
-                let gulp = match Command::new("./gulp_1")
-                    .env("GULP_LIB", "/mnt/turtle/Aus/RMIT/gulp-4.4/Libraries/")
-                    .env("GULP_DOC", "/mnt/turtle/Aus/RMIT/gulp-4.4/Docs/")
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn() {
-                    Err(why) => panic!("couldn't spawn gulp: {}", why.description()),
-                    Ok(gulp) => gulp,
-                };
 
-                // Write a string to the `stdin` of `gulp`.
-                // `stdin` has type `Option<ChildStdin>`, but since we know this instance
-                // must have one, we can directly `unwrap` it.
-                match gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
-                    Err(why) => panic!("couldn't write to gulp stdin: {}", why.description()),
+                input_gin.push_str("cart\n");
+                input_gin.push_str(&cluster);
+                input_gin.push_str(&current);
+                input_gin.push_str("\nlibrary streitzmintmire\n\n");
+            }
+        }
+    }
+
+    println!("Running Gulp...");
+    // Spawn gulp
+    let gulp = match Command::new("./gulp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn() {
+        Err(why) => panic!("couldn't spawn gulp: {}", why.description()),
+        Ok(gulp) => gulp,
+    };
+
+    // Write a string to the `stdin` of `gulp`.
+    // `stdin` has type `Option<ChildStdin>`, but since we know this instance
+    // must have one, we can directly `unwrap` it.
+    match gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
+        Err(why) => panic!("couldn't write to gulp stdin: {}", why.description()),
+        Ok(_) => {}
+    }
+
+    // Because `stdin` does not live after the above calls, it is `drop`ed,
+    // and the pipe is closed.
+    //
+    // This is very important, otherwise `gulp` wouldn't start processing the
+    // input we just sent.
+
+    // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
+    let mut clust_gout = String::new();
+    match gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
+        Err(why) => panic!("couldn't read gulp stdout: {}", why.description()),
+        Ok(_) => {}
+    }
+
+    println!("Consolidating potential values.");
+
+    for cap in re_final.captures_iter(&clust_gout) {
+        let potval: Option<f64> = cap.get(1).and_then(|s| s.as_str().parse().ok());
+        match potval {
+            Some(p) => {
+                let potout = format!("{:.6}\n", p * 239.2311f64);
+                match potfile.write_all(potout.as_bytes()) {
+                    Err(why) => panic!("couldn't write to output: {}", why.description()),
                     Ok(_) => {}
-                }
-
-                // Because `stdin` does not live after the above calls, it is `drop`ed,
-                // and the pipe is closed.
-                //
-                // This is very important, otherwise `gulp` wouldn't start processing the
-                // input we just sent.
-
-                // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
-                let mut clust_gout = String::new();
-                match gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
-                    Err(why) => panic!("couldn't read gulp stdout: {}", why.description()),
-                    Ok(_) => {}
-                }
-
-                let caps = re_final.captures(&clust_gout).unwrap();
-                let potval: Option<f64> = caps.get(1).and_then(|s| s.as_str().parse().ok());
-                match potval {
-                    Some(p) => {
-                        let potout = format!("{:.6}\n", p * 239.2311f64);
-                        match potfile.write_all(potout.as_bytes()) {
-                            Err(why) => panic!("couldn't write to output: {}", why.description()),
-                            Ok(_) => {}
-                        }
-                    }
-                    None => panic!("Couldn't capture final energy from gulp output."),
                 }
             }
+            None => panic!("Issue capturing a final energy from gulp output."),
         }
     }
 
