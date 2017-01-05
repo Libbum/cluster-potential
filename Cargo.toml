@@ -1,0 +1,6 @@
+[package]
+name = "cluster-potential"
+version = "0.1.0"
+authors = ["Tim DuBois <tim@neophilus.net>"]
+
+[dependencies]
