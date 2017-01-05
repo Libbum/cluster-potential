@@ -1,8 +1,12 @@
+extern crate regex;
+
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
 use std::env;
+
+use regex::Regex;
 
 fn read_cluster() -> Result<String, std::io::Error> {
     let mut f = try!(File::open("cluster.xyz"));
@@ -75,9 +79,18 @@ fn main() {
     // input we just sent.
 
     // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
-    let mut output = String::new();
-    match gulp.stdout.unwrap().read_to_string(&mut output) {
+    let mut clust_gout = String::new();
+    match gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
         Err(why) => panic!("couldn't read gulp stdout: {}", why.description()),
-        Ok(_) => print!("gulp responded with:\n{}", output),
+        Ok(_) => {},
     }
+
+    let re_final = Regex::new(r"Final energy =\s+(-?\d+\.?\d+)\s+eV").unwrap();
+    let caps = re_final.captures(&clust_gout).unwrap();
+    let potval: Option<f64> = caps.get(1).and_then(|s| s.as_str().parse().ok());
+    match potval {
+        Some(p) => {println!("Final energy in Wafer units: {:.6}", p*239.2311f64)},
+        None => {panic!("Couldn't capture final energy from gulp output.")},
+    }
+
 }
