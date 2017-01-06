@@ -10,9 +10,9 @@ use std::env;
 use regex::Regex;
 
 fn read_cluster() -> Result<String, std::io::Error> {
-    let mut f = try!(File::open("cluster.xyz"));
+    let mut f = File::open("cluster.xyz")?;
     let mut s = String::new();
-    try!(f.read_to_string(&mut s));  // `s` contains the contents of "cluster.xyz"
+    f.read_to_string(&mut s)?;  // `s` contains the contents of "cluster.xyz"
     Ok(s)
 }
 
