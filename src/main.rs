@@ -13,9 +13,8 @@ use regex::Regex;
 use getopts::Options;
 
 fn read_file<P: AsRef<Path>>(file_path: P) -> Result<String, std::io::Error> {
-    let mut file = OpenOptions::new().read(true).open(file_path)?;
     let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
+    OpenOptions::new().read(true).open(file_path)?.read_to_string(&mut contents)?;
     Ok(contents)
 }
 
