@@ -1,4 +1,5 @@
 extern crate regex;
+extern crate getopts;
 
 use std::error::Error;
 use std::fs::File;
@@ -8,29 +9,64 @@ use std::path::Path;
 use std::env;
 
 use regex::Regex;
+use getopts::Options;
 
-fn read_cluster() -> Result<String, std::io::Error> {
-    let mut f = File::open("cluster.xyz")?;
-    let mut s = String::new();
-    f.read_to_string(&mut s)?;  // `s` contains the contents of "cluster.xyz"
-    Ok(s)
+fn read_file<P: AsRef<Path>>(file_path: P) -> Result<String, std::io::Error> {
+    let mut file = File::open(file_path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+fn print_usage(program: &str, opts: Options) {
+    println!("{}", opts.usage(&format!("Usage: {} [options] <node>", program)));
 }
 
 fn main() {
-    // By default we generate values for node 1, although we can use a CLA to build other nodes
-    // ultimately we need 1 - 30).
-    let mut node = 1;
-    if let Some(arg1) = env::args().nth(1) {
-        node = arg1.parse().unwrap();
+    let args: Vec<String> = env::args().collect();
+    let program = &args[0];
+
+    let mut opts = Options::new();
+    opts.optflag("h", "help", "Show this usage message.");
+    opts.optflag("r", "restart", "Restart from an existing (unfinished) potential_{node}.dat file.");
+
+    let matches = match opts.parse(&args[1..]) {
+        Ok(m)  => { m }
+        Err(err) => {
+            println!("Error parsing options: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    if matches.opt_present("h") {
+        print_usage(&program, opts);
+        return;
     }
 
+    // By default we generate values for node 1, although we can use a CLA to build other nodes
+    let node = if matches.free.is_empty() {
+        1
+    } else {
+        match matches.free[0].parse::<u32>() {
+            Ok(n) => n,
+            Err(err) => {
+                println!("Could not parse node number: {}", err);
+                std::process::exit(1);
+            }
+        }
+    };
+
+    //TODO: We could throw these into options if we wanted.
     let cpus = 30;
     let numxi = 300;
     let numyi = 300;
     let numzi = 300;
     let a = 0.0035;
 
-    let cluster = read_cluster().unwrap();
+    let cluster = match read_file("cluster.xyz") {
+        Ok(s) => s,
+        Err(err) => panic!("Cannot get cluster info. Reason: {}.", err.description())
+    };
 
     // setup output file
     let potname = format!("potential_{}.dat", node);

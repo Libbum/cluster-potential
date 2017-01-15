@@ -5,3 +5,4 @@ authors = ["Tim DuBois <tim@neophilus.net>"]
 
 [dependencies]
 regex = "0.2.1"
+getopts = "0.2.14"
