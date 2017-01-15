@@ -85,8 +85,8 @@ fn main() {
 
     //TODO: We could throw these into options if we wanted.
     let cpus = 30;
-    let numxi = 2;
-    let numyi = 2;
+    let numxi = 300;
+    let numyi = 300;
     let numzi = 300;
     let a = 0.0035;
 
