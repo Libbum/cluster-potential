@@ -19,6 +19,31 @@ fn read_file<P: AsRef<Path>>(file_path: P) -> Result<String, std::io::Error> {
     Ok(contents)
 }
 
+fn get_restart_position(solved: u64, totals: (u32, u32, u32)) -> Result<(u32, u32, u32), String> {
+    let (xt, yt, zt) = totals;
+    let mut counter: u64 = 0;
+
+    for xx in 0..xt {
+        for yy in 0..yt {
+            for zz in 0..zt {
+                if counter == solved {
+                    if zz == zt {
+                        //increment y one
+                        if yy == yt {
+                            //increment x one
+                            return Ok((xx+1,0,0));
+                        }
+                        return Ok((xx,yy+1,0));
+                    }
+                    return Ok((xx,yy,zz));
+                }
+                counter += 1;
+            }
+        }
+    }
+    Err(From::from("Could not identify restart position."))
+}
+
 fn print_usage(program: &str, opts: Options) {
     println!("{}", opts.usage(&format!("Usage: {} [options] <node>", program)));
 }
@@ -66,11 +91,14 @@ fn main() {
     let a = 0.0035;
 
     let distnumz = numzi / cpus;
+    let mut startloop = (0,0,0);
 
     let cluster = match read_file("cluster.xyz") {
         Ok(s) => s,
         Err(err) => panic!("Cannot get cluster info. Reason: {}.", err.description())
     };
+
+    println!("Building potential file for node: {}", node);
 
     // setup output file
     let potname = format!("potential_{}.dat", node);
@@ -84,10 +112,16 @@ fn main() {
             Ok(file) => file,
         };
         let reader = BufReader::new(&potfile);
+        let solved: u64 = reader.lines().count() as u64;
         println!("Current potential has {} of {} points already solved.",
-                 reader.lines().count(), (numxi+6)*(numyi+6)*(distnumz+6));
+                 solved, (numxi+6)*(numyi+6)*(distnumz+6));
         //Just a note here. It would be awesome if r.l.c was a multiple of distnumz+6,
         //but I doubt it will happen all the time.
+        startloop = match get_restart_position(solved, (numxi+6, numyi+6, distnumz+6)) {
+            Ok(values) => values,
+            Err(why) => panic!("{}", why)
+        };
+        println!("Starting at position {:?}.", startloop);
     } else {
         //Create a potential file (or truncate the current one)
         potfile = match OpenOptions::new().write(true).create(true).open(&potname) {
@@ -100,7 +134,6 @@ fn main() {
 
     let re_final = Regex::new(r"Final energy =\s+(-?\d+\.?\d+)\s+eV").unwrap();
 
-    println!("Building potential file for node: {}", node);
 
     let a2 = a / 2.0;
     let numx = numxi as f32;
@@ -114,68 +147,72 @@ fn main() {
 
     for xx in 0..numxi + 5 + 1 {
         for yy in 0..numyi + 5 + 1 {
-            for zz in 0..distnumz + 5 + 1 {
+            if xx >= startloop.0 && yy >= startloop.1 {
+                for zz in 0..distnumz + 5 + 1 {
+                    if zz >= startloop.2 {
+                        startloop = (0,0,0); //turn off restart truncator
 
-                let tx = -(grx + 3.0 * a) + (xx as f32) * (2.0 * grx) / (numx - 1.0);
-                let ty = -(gry + 3.0 * a) + (yy as f32) * (2.0 * gry) / (numy - 1.0);
-                let tz = -(grz + 3.0 * a) +
-                    ((zz as f32) + ((node as f32) - 1.0) * (distnumz as f32)) * (2.0 * grz) /
-                    (numz - 1.0);
-                let current = format!("O   {:.5}   {:.5}   {:.5}", tx, ty, tz);
+                        let tx = -(grx + 3.0 * a) + (xx as f32) * (2.0 * grx) / (numx - 1.0);
+                        let ty = -(gry + 3.0 * a) + (yy as f32) * (2.0 * gry) / (numy - 1.0);
+                        let tz = -(grz + 3.0 * a) +
+                            ((zz as f32) + ((node as f32) - 1.0) * (distnumz as f32)) * (2.0 * grz) /
+                            (numz - 1.0);
+                        let current = format!("O   {:.5}   {:.5}   {:.5}", tx, ty, tz);
 
-                input_gin.push_str("cart\n");
-                input_gin.push_str(&cluster);
-                input_gin.push_str(&current);
-                input_gin.push_str("\nlibrary streitzmintmire\n\n");
-            }
-
-            // Spawn gulp
-            let gulp = match Command::new("./gulp")
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn() {
-                    Err(why) => panic!("couldn't spawn gulp: {}", why.description()),
-                    Ok(gulp) => gulp,
-                };
-
-            // Write a string to the `stdin` of `gulp`.
-            // `stdin` has type `Option<ChildStdin>`, but since we know this instance
-            // must have one, we can directly `unwrap` it.
-            match gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
-                Err(why) => panic!("couldn't write to gulp stdin: {}", why.description()),
-                Ok(_) => {}
-            }
-
-            // Because `stdin` does not live after the above calls, it is `drop`ed,
-            // and the pipe is closed.
-            //
-            // This is very important, otherwise `gulp` wouldn't start processing the
-            // input we just sent.
-
-            // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
-            let mut clust_gout = String::new();
-            match gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
-                Err(why) => panic!("couldn't read gulp stdout: {}", why.description()),
-                Ok(_) => {}
-            }
-
-            for cap in re_final.captures_iter(&clust_gout) {
-                let potval: Option<f64> = cap.get(1).and_then(|s| s.as_str().parse().ok());
-                match potval {
-                    Some(p) => {
-                        let potout = format!("{:.6}\n", p * 239.2311f64);
-                        match potfile.write_all(potout.as_bytes()) {
-                            Err(why) => panic!("couldn't write to output: {}", why.description()),
-                            Ok(_) => {}
-                        }
+                        input_gin.push_str("cart\n");
+                        input_gin.push_str(&cluster);
+                        input_gin.push_str(&current);
+                        input_gin.push_str("\nlibrary streitzmintmire\n\n");
                     }
-                    None => panic!("Issue capturing a final energy from gulp output."),
                 }
-            }
+                // Spawn gulp
+                let gulp = match Command::new("./gulp")
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn() {
+                        Err(why) => panic!("couldn't spawn gulp: {}", why.description()),
+                        Ok(gulp) => gulp,
+                    };
 
-            // Resetting the string this way should keep it's capacity
-            input_gin.clear();
-            input_gin.push_str("conp opti\n");
+                // Write a string to the `stdin` of `gulp`.
+                // `stdin` has type `Option<ChildStdin>`, but since we know this instance
+                // must have one, we can directly `unwrap` it.
+                match gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
+                    Err(why) => panic!("couldn't write to gulp stdin: {}", why.description()),
+                    Ok(_) => {}
+                }
+
+                // Because `stdin` does not live after the above calls, it is `drop`ed,
+                // and the pipe is closed.
+                //
+                // This is very important, otherwise `gulp` wouldn't start processing the
+                // input we just sent.
+
+                // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
+                let mut clust_gout = String::new();
+                match gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
+                    Err(why) => panic!("couldn't read gulp stdout: {}", why.description()),
+                    Ok(_) => {}
+                }
+
+                for cap in re_final.captures_iter(&clust_gout) {
+                    let potval: Option<f64> = cap.get(1).and_then(|s| s.as_str().parse().ok());
+                    match potval {
+                        Some(p) => {
+                            let potout = format!("({}, {}), {:.6}\n", xx, yy, p * 239.2311f64);
+                            match potfile.write_all(potout.as_bytes()) {
+                                Err(why) => panic!("couldn't write to output: {}", why.description()),
+                                Ok(_) => {}
+                            }
+                        }
+                        None => panic!("Issue capturing a final energy from gulp output."),
+                    }
+                }
+
+                // Resetting the string this way should keep it's capacity
+                input_gin.clear();
+                input_gin.push_str("conp opti\n");
+            }
         }
     }
 
