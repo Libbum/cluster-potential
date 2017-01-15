@@ -2,7 +2,7 @@ extern crate regex;
 extern crate getopts;
 
 use std::error::Error;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
 use std::path::Path;
@@ -12,7 +12,7 @@ use regex::Regex;
 use getopts::Options;
 
 fn read_file<P: AsRef<Path>>(file_path: P) -> Result<String, std::io::Error> {
-    let mut file = File::open(file_path)?;
+    let mut file = OpenOptions::new().read(true).open(file_path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     Ok(contents)
@@ -58,8 +58,8 @@ fn main() {
 
     //TODO: We could throw these into options if we wanted.
     let cpus = 30;
-    let numxi = 300;
-    let numyi = 300;
+    let numxi = 2;
+    let numyi = 2;
     let numzi = 300;
     let a = 0.0035;
 
@@ -70,13 +70,24 @@ fn main() {
 
     // setup output file
     let potname = format!("potential_{}.dat", node);
-    let potpath = Path::new(&potname);
-    let mut potfile = match File::create(&potpath) {
-        Err(why) => {
-            panic!("couldn't create {}: {}", potpath.display(), why.description())
-        }
-        Ok(file) => file,
-    };
+    let mut potfile: std::fs::File;
+    if matches.opt_present("r") {
+        //We want to restart from a current potential file
+        potfile = match OpenOptions::new().read(true).append(true).open(&potname) {
+            Err(why) => {
+                panic!("Issue with {}: {}", &potname, why.description())
+            }
+            Ok(file) => file,
+        };
+    } else {
+        //Create a potential file (or truncate the current one)
+        potfile = match OpenOptions::new().write(true).create(true).open(&potname) {
+            Err(why) => {
+                panic!("Couldn't create {}: {}", &potname, why.description())
+            }
+            Ok(file) => file,
+        };
+    }
 
     let re_final = Regex::new(r"Final energy =\s+(-?\d+\.?\d+)\s+eV").unwrap();
 
