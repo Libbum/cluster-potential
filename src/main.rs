@@ -3,6 +3,7 @@ extern crate getopts;
 
 use std::error::Error;
 use std::fs::OpenOptions;
+use std::io::BufReader;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
 use std::path::Path;
@@ -28,7 +29,8 @@ fn main() {
 
     let mut opts = Options::new();
     opts.optflag("h", "help", "Show this usage message.");
-    opts.optflag("r", "restart", "Restart from an existing (unfinished) potential_{node}.dat file.");
+    opts.optflag("r", "restart", "Restart from an existing (unfinished) potential_{node}.dat file.
+                                  One must be careful not to alter num{x,y,z} during this process.");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m)  => { m }
@@ -63,6 +65,8 @@ fn main() {
     let numzi = 300;
     let a = 0.0035;
 
+    let distnumz = numzi / cpus;
+
     let cluster = match read_file("cluster.xyz") {
         Ok(s) => s,
         Err(err) => panic!("Cannot get cluster info. Reason: {}.", err.description())
@@ -79,6 +83,11 @@ fn main() {
             }
             Ok(file) => file,
         };
+        let reader = BufReader::new(&potfile);
+        println!("Current potential has {} of {} points already solved.",
+                 reader.lines().count(), (numxi+6)*(numyi+6)*(distnumz+6));
+        //Just a note here. It would be awesome if r.l.c was a multiple of distnumz+6,
+        //but I doubt it will happen all the time.
     } else {
         //Create a potential file (or truncate the current one)
         potfile = match OpenOptions::new().write(true).create(true).open(&potname) {
@@ -94,7 +103,6 @@ fn main() {
     println!("Building potential file for node: {}", node);
 
     let a2 = a / 2.0;
-    let distnumz = numzi / cpus;
     let numx = numxi as f32;
     let numy = numyi as f32;
     let numz = numzi as f32;
