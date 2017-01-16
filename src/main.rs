@@ -198,7 +198,7 @@ fn main() {
                     let potval: Option<f64> = cap.get(1).and_then(|s| s.as_str().parse().ok());
                     match potval {
                         Some(p) => {
-                            let potout = format!("({}, {}), {:.6}\n", xx, yy, p * 239.2311f64);
+                            let potout = format!("{:.6}\n", p * 239.2311f64);
                             match potfile.write_all(potout.as_bytes()) {
                                 Err(why) => panic!("couldn't write to output: {}", why.description()),
                                 Ok(_) => {}
