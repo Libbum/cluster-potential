@@ -18,29 +18,15 @@ fn read_file<P: AsRef<Path>>(file_path: P) -> Result<String, std::io::Error> {
     Ok(contents)
 }
 
-fn get_restart_position(solved: u64, totals: (u32, u32, u32)) -> Result<(u32, u32, u32), String> {
-    let (xt, yt, zt) = totals;
-    let mut counter: u64 = 0;
+fn get_restart_position(solved: u64, totals: (u32, u32, u32)) -> (u32, u32, u32) {
+    let (_, yt, zt) = totals;
 
-    for xx in 0..xt {
-        for yy in 0..yt {
-            for zz in 0..zt {
-                if counter == solved {
-                    if zz == zt {
-                        //increment y one
-                        if yy == yt {
-                            //increment x one
-                            return Ok((xx+1,0,0));
-                        }
-                        return Ok((xx,yy+1,0));
-                    }
-                    return Ok((xx,yy,zz));
-                }
-                counter += 1;
-            }
-        }
-    }
-    Err(From::from("Could not identify restart position."))
+    let xx = (solved / (yt*zt) as u64) as u32;
+    let r2 = (solved % (yt*zt) as u64) as u32;
+    let yy = r2 / zt;
+    let zz = r2 % zt;
+
+    (xx,yy,zz)
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -116,10 +102,7 @@ fn main() {
                  solved, (numxi+6)*(numyi+6)*(distnumz+6));
         //Just a note here. It would be awesome if r.l.c was a multiple of distnumz+6,
         //but I doubt it will happen all the time.
-        startloop = match get_restart_position(solved, (numxi+6, numyi+6, distnumz+6)) {
-            Ok(values) => values,
-            Err(why) => panic!("{}", why)
-        };
+        startloop = get_restart_position(solved, (numxi+6, numyi+6, distnumz+6));
         println!("Starting at position {:?}.", startloop);
     } else {
         //Create a potential file (or truncate the current one)
