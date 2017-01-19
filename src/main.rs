@@ -178,7 +178,7 @@ fn main() {
         for yy in 0..numyi + 5 + 1 {
             if xx >= startloop.0 && yy >= startloop.1 {
                 let mut do_run = false;
-                let mut index = 0;
+                let mut index: u32;
                 for zz in 0..distnumz + 5 + 1 {
                     index = loop_tops.1*loop_tops.2*xx + loop_tops.2*yy + zz;
                     if curr_chunk_start <= index && index <= curr_chunk_end && zz >= startloop.2 {
