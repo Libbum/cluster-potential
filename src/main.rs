@@ -66,7 +66,7 @@ fn main() {
     };
 
     if matches.opt_present("h") {
-        print_usage(&program, opts);
+        print_usage(program, opts);
         return;
     }
 
@@ -226,9 +226,8 @@ fn main() {
                     // Write a string to the `stdin` of `gulp`.
                     // `stdin` has type `Option<ChildStdin>`, but since we know this instance
                     // must have one, we can directly `unwrap` it.
-                    match gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
-                        Err(why) => panic!("couldn't write to gulp stdin: {}", why.description()),
-                        Ok(_) => {}
+                    if let Err(why) = gulp.stdin.unwrap().write_all(input_gin.as_bytes()) {
+                        panic!("couldn't write to gulp stdin: {}", why.description());
                     }
 
                     // Because `stdin` does not live after the above calls, it is `drop`ed,
@@ -239,9 +238,8 @@ fn main() {
 
                     // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
                     let mut clust_gout = String::new();
-                    match gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
-                        Err(why) => panic!("couldn't read gulp stdout: {}", why.description()),
-                        Ok(_) => {}
+                    if let Err(why) = gulp.stdout.unwrap().read_to_string(&mut clust_gout) {
+                        panic!("couldn't read gulp stdout: {}", why.description());
                     }
 
                     for cap in re_final.captures_iter(&clust_gout) {
@@ -249,11 +247,8 @@ fn main() {
                         match potval {
                             Some(p) => {
                                 let potout = format!("{:.6}\n", p * 239.2311f64);
-                                match potfile.write_all(potout.as_bytes()) {
-                                    Err(why) => {
-                                        panic!("couldn't write to output: {}", why.description())
-                                    }
-                                    Ok(_) => {}
+                                if let Err(why) = potfile.write_all(potout.as_bytes()) {
+                                    panic!("couldn't write to output: {}", why.description());
                                 }
                             }
                             None => panic!("Issue capturing a final energy from gulp output."),
