@@ -17,7 +17,10 @@ use getopts::Options;
 
 fn read_file<P: AsRef<Path>>(file_path: P) -> Result<String, std::io::Error> {
     let mut contents = String::new();
-    OpenOptions::new().read(true).open(file_path)?.read_to_string(&mut contents)?;
+    OpenOptions::new()
+        .read(true)
+        .open(file_path)?
+        .read_to_string(&mut contents)?;
     Ok(contents)
 }
 
@@ -35,8 +38,10 @@ fn get_index_position(solved: u32, totals: (u32, u32, u32)) -> (u32, u32, u32) {
 }
 
 fn print_usage(program: &str, opts: &Options) {
-    println!("{}",
-             opts.usage(&format!("Usage: {} [options] <node>", program)));
+    println!(
+        "{}",
+        opts.usage(&format!("Usage: {} [options] <node>", program))
+    );
 }
 
 fn main() {
@@ -47,15 +52,19 @@ fn main() {
 
     let mut opts = Options::new();
     opts.optflag("h", "help", "Show this usage message.");
-    opts.optflag("r",
-                 "restart",
-                 "Restart from an existing (unfinished) potential_{node}.dat file.
+    opts.optflag(
+        "r",
+        "restart",
+        "Restart from an existing (unfinished) potential_{node}.dat file.
                                   \
-                  One must be careful not to alter num{x,y,z} during this process.");
-    opts.optopt("c",
-                "chunk",
-                format!("Enable chunking and build chunk N of {}.", chunk_tot).as_str(),
-                "N");
+                  One must be careful not to alter num{x,y,z} during this process.",
+    );
+    opts.optopt(
+        "c",
+        "chunk",
+        format!("Enable chunking and build chunk N of {}.", chunk_tot).as_str(),
+        "N",
+    );
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -82,9 +91,11 @@ fn main() {
             }
         };
         if chunk_num > chunk_tot {
-            println!("Chunk value: {} is greater than current total chunk number: {}.",
-                     chunk_num,
-                     chunk_tot);
+            println!(
+                "Chunk value: {} is greater than current total chunk number: {}.",
+                chunk_num,
+                chunk_tot
+            );
             std::process::exit(1);
         }
         if chunk_num == 0 {
@@ -125,7 +136,12 @@ fn main() {
 
     let cluster2nn = match read_file("cluster2nn_wo_nn.xyz") {
         Ok(s) => s,
-        Err(err) => panic!("Cannot get 2nn cluster info. Reason: {}.", err.description()),
+        Err(err) => {
+            panic!(
+                "Cannot get 2nn cluster info. Reason: {}.",
+                err.description()
+            )
+        }
     };
 
     println!("Building potential file for node: {}", node);
@@ -137,13 +153,17 @@ fn main() {
         per_chunk = total_points / chunk_tot;
         curr_chunk_start = per_chunk * (chunk_num - 1);
         curr_chunk_end = (per_chunk * (chunk_num)) - 1;
-        println!("Current job is for chunk {} of {}. Points per chunk: {}",
-                 chunk_num,
-                 chunk_tot,
-                 per_chunk);
-        println!("Index at start: {}, index at end: {}.",
-                 curr_chunk_start,
-                 curr_chunk_end);
+        println!(
+            "Current job is for chunk {} of {}. Points per chunk: {}",
+            chunk_num,
+            chunk_tot,
+            per_chunk
+        );
+        println!(
+            "Index at start: {}, index at end: {}.",
+            curr_chunk_start,
+            curr_chunk_end
+        );
     }
 
     // setup output file
@@ -162,15 +182,19 @@ fn main() {
         let reader = BufReader::new(&potfile);
         let solved = reader.lines().count() as u32;
         if do_chunk {
-            println!("Current potential chunk has {} of {} points already solved.",
-                     solved,
-                     per_chunk);
+            println!(
+                "Current potential chunk has {} of {} points already solved.",
+                solved,
+                per_chunk
+            );
             curr_chunk_start += solved;
             println!("Changed start index to: {}", curr_chunk_start);
         } else {
-            println!("Current potential has {} of {} points already solved.",
-                     solved,
-                     total_points);
+            println!(
+                "Current potential has {} of {} points already solved.",
+                solved,
+                total_points
+            );
             startloop = get_index_position(solved, loop_tops);
             println!("Starting at position {:?}.", startloop);
         }
@@ -208,8 +232,8 @@ fn main() {
                         let tx = -(grx + 3.0 * a) + (xx as f32) * (2.0 * grx) / (numx - 1.0);
                         let ty = -(gry + 3.0 * a) + (yy as f32) * (2.0 * gry) / (numy - 1.0);
                         let tz = -(grz + 3.0 * a) +
-                                 ((zz as f32) + ((node as f32) - 1.0) * (distnumz as f32)) *
-                                 (2.0 * grz) / (numz - 1.0);
+                            ((zz as f32) + ((node as f32) - 1.0) * (distnumz as f32)) *
+                                (2.0 * grz) / (numz - 1.0);
                         let current = format!("O   {:.5}   {:.5}   {:.5}", tx, ty, tz);
 
                         input_gin.push_str("cart region 1\n");
@@ -221,6 +245,7 @@ fn main() {
                     }
                 }
                 if do_run {
+                    println!("{}, {}.", xx, yy);
                     // Spawn gulp
                     let gulp = match Command::new("./gulp")
                         .stdin(Stdio::piped())
