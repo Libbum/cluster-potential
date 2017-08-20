@@ -1,4 +1,5 @@
 target
 gulp*
-cluster.xyz
+cluster*.xyz
 *.dat
+Cargo.lock
