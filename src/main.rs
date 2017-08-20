@@ -34,7 +34,7 @@ fn get_index_position(solved: u32, totals: (u32, u32, u32)) -> (u32, u32, u32) {
     (xx, yy, zz)
 }
 
-fn print_usage(program: &str, opts: Options) {
+fn print_usage(program: &str, opts: &Options) {
     println!("{}",
              opts.usage(&format!("Usage: {} [options] <node>", program)));
 }
@@ -66,7 +66,7 @@ fn main() {
     };
 
     if matches.opt_present("h") {
-        print_usage(program, opts);
+        print_usage(program, &opts);
         return;
     }
 
@@ -118,9 +118,14 @@ fn main() {
     let total_points = (numxi + 6) * (numyi + 6) * (distnumz + 6);
     let loop_tops = (numxi + 6, numyi + 6, distnumz + 6);
 
-    let cluster = match read_file("cluster.xyz") {
+    let clusternn = match read_file("clusternn.xyz") {
         Ok(s) => s,
-        Err(err) => panic!("Cannot get cluster info. Reason: {}.", err.description()),
+        Err(err) => panic!("Cannot get nn cluster info. Reason: {}.", err.description()),
+    };
+
+    let cluster2nn = match read_file("cluster2nn_wo_nn.xyz") {
+        Ok(s) => s,
+        Err(err) => panic!("Cannot get 2nn cluster info. Reason: {}.", err.description()),
     };
 
     println!("Building potential file for node: {}", node);
@@ -207,8 +212,10 @@ fn main() {
                                  (2.0 * grz) / (numz - 1.0);
                         let current = format!("O   {:.5}   {:.5}   {:.5}", tx, ty, tz);
 
-                        input_gin.push_str("cart\n");
-                        input_gin.push_str(&cluster);
+                        input_gin.push_str("cart region 1\n");
+                        input_gin.push_str(&clusternn);
+                        input_gin.push_str("cart region 2 rigid\n");
+                        input_gin.push_str(&cluster2nn);
                         input_gin.push_str(&current);
                         input_gin.push_str("\nlibrary streitzmintmire\n\n");
                     }

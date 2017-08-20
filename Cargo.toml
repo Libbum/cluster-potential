@@ -4,8 +4,8 @@ version = "0.1.0"
 authors = ["Tim DuBois <tim@neophilus.net>"]
 
 [dependencies]
-regex = "0.2.1"
-getopts = "0.2.14"
+regex = "0.2"
+getopts = "0.2"
 clippy = {version = "*", optional = true}
 
 [features]
